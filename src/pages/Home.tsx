@@ -119,7 +119,7 @@ export default function Home() {
   useEffect(() => {
     async function fetchAidRequests() {
       try {
-        const response = await fetch("http://localhost:5158/AidRequest/dmc-approved");
+        const response = await fetch("http://localhost:5158/AidRequest/ds-approved");
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         setAidRequests(data);
