@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState } from "react";
 import districtDivisionalSecretariats from "../data/districtDivisionalSecretariats";
 
 export default function SubmitSymptoms() {
@@ -6,8 +6,10 @@ export default function SubmitSymptoms() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [fileName, setFileName] = useState<string>("");
-  const [image, setFileUrl] = useState<string>("");
+  const [image, setImage] = useState<string>(""); // ✅ Base64 string
+  const [previewUrl, setPreviewUrl] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
+
   const [reporter_name, setFullName] = useState("");
   const [contact_no, setContactNo] = useState("");
   const [district, setSelectedDistrict] = useState<string>("");
@@ -24,20 +26,14 @@ export default function SubmitSymptoms() {
     reporter_name: "",
     contact_no: "",
     description: ""
-     });
+  });
 
   const validatePhoneNumber = (phone: string) => {
     const regex = /^\d{10}$/;
-    if (!regex.test(phone)) {
-      return "Phone number must be exactly 10 digits";
-    }
-    return "";
+    return !regex.test(phone) ? "Phone number must be exactly 10 digits" : "";
   };
 
-  // GPS Location Service - Maps coordinates to districts/divisional secretariats
-  const getLocationFromCoordinates = (latitude: number, longitude: number): { district: string; divisionalSecretariat: string } => {
-    // Sri Lanka coordinate bounds and district mapping
-    // This is a simplified mapping - in a real application, you'd use a proper geocoding service
+  const getLocationFromCoordinates = (latitude: number, longitude: number) => {
     const locationMappings = [
       { bounds: { minLat: 6.7, maxLat: 7.0, minLng: 79.8, maxLng: 80.2 }, district: "Colombo", divisionalSecretariat: "Colombo" },
       { bounds: { minLat: 6.9, maxLat: 7.2, minLng: 79.9, maxLng: 80.3 }, district: "Gampaha", divisionalSecretariat: "Gampaha" },
@@ -65,20 +61,15 @@ export default function SubmitSymptoms() {
       { bounds: { minLat: 6.6, maxLat: 6.9, minLng: 80.3, maxLng: 80.6 }, district: "Ratnapura", divisionalSecretariat: "Ratnapura" },
       { bounds: { minLat: 7.2, maxLat: 7.5, minLng: 80.3, maxLng: 80.6 }, district: "Kegalle", divisionalSecretariat: "Kegalle" }
     ];
-
     for (const mapping of locationMappings) {
       const { bounds, district, divisionalSecretariat } = mapping;
       if (
-        latitude >= bounds.minLat &&
-        latitude <= bounds.maxLat &&
-        longitude >= bounds.minLng &&
-        longitude <= bounds.maxLng
+        latitude >= bounds.minLat && latitude <= bounds.maxLat &&
+        longitude >= bounds.minLng && longitude <= bounds.maxLng
       ) {
         return { district, divisionalSecretariat };
       }
     }
-
-    // Default fallback if no mapping found
     return { district: "Colombo", divisionalSecretariat: "Colombo" };
   };
 
@@ -87,7 +78,7 @@ export default function SubmitSymptoms() {
     setLocationError("");
 
     if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by this browser");
+      setLocationError("Geolocation not supported");
       setIsLoadingLocation(false);
       return;
     }
@@ -95,67 +86,66 @@ export default function SubmitSymptoms() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const { latitude, longitude } = position.coords;
-        const location = getLocationFromCoordinates(latitude, longitude);
-        
-        setSelectedDistrict(location.district);
-        setSelectedDivisionalSecretariat(location.divisionalSecretariat);
+        const loc = getLocationFromCoordinates(latitude, longitude);
+        setSelectedDistrict(loc.district);
+        setSelectedDivisionalSecretariat(loc.divisionalSecretariat);
         setIsLocationAutoDetected(true);
-        setIsLoadingLocation(false);
         setLatitude(latitude);
         setLongitude(longitude);
-       },
-      (error) => {
-        let errorMessage = "Unable to retrieve location";
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = "Location access denied by user";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = "Location information unavailable";
-            break;
-          case error.TIMEOUT:
-            errorMessage = "Location request timed out";
-            break;
-        }
-        setLocationError(errorMessage);
         setIsLoadingLocation(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 600000 // 10 minutes
-      }
+      () => {
+        setLocationError("Unable to retrieve location");
+        setIsLoadingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
     );
   };
 
   const validateForm = () => {
     const newErrors: any = {};
-
     if (!reporter_name.trim()) {
       newErrors.reporter_name = "Full name is required";
-    } else if (!/^[A-Za-z\s]+$/.test(reporter_name.trim())) {
-      newErrors.reporter_name = "Name can only contain letters and spaces";
     }
-
     const phoneError = validatePhoneNumber(contact_no);
-    if (phoneError) {
-      newErrors.contact_no = phoneError;
-    }
-
+    if (phoneError) newErrors.contact_no = phoneError;
     if (!description.trim()) {
       newErrors.description = "Symptoms description is required";
-    } else if (description.trim().length < 10) {
-      newErrors.description = "Symptoms should be at least 10 characters long";
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result as string;
+        setImage(base64); // ✅ for backend
+        setPreviewUrl(base64); // for preview
+      };
+      reader.readAsDataURL(file);
+      setFileName(file.name);
+    } else {
+      setFileName("");
+      setImage("");
+      setPreviewUrl("");
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setFileName("");
+    setImage("");
+    setPreviewUrl("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleClear = () => {
     formRef.current?.reset();
     setFileName("");
-    setFileUrl("");
+    setImage("");
+    setPreviewUrl("");
     setFullName("");
     setContactNo("");
     setSelectedDistrict("");
@@ -163,77 +153,47 @@ export default function SubmitSymptoms() {
     setDateTime("");
     setSymptoms("");
     setErrors({ reporter_name: "", contact_no: "", description: "" });
-    setLatitude(null);   
+    setLatitude(null);
     setLongitude(null);
     setLocationError("");
     setIsLocationAutoDetected(false);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    setFileName(file?.name || "");
-    if (file && file.type.startsWith("image/")) {
-      setFileUrl(URL.createObjectURL(file));
-    } else {
-      setFileUrl("");
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setFileName("");
-    setFileUrl("");
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!validateForm()) return;
 
-    try {
-      const reportData = {
-        reporter_name,
-        contact_no,
-        district,
-        divisional_secretariat,
-        date_time: new Date(date_time).toISOString(),
-        description,
-        image: image || "",
-        action: "Pending",
-        latitude,       
-        longitude 
-      };
+    const reportData = {
+      reporter_name,
+      contact_no,
+      district,
+      divisional_secretariat,
+      date_time: new Date(date_time).toISOString(),
+      description,
+      image, // ✅ base64 image
+      action: "Pending",
+      latitude,
+      longitude
+    };
 
+    try {
       const response = await fetch("http://localhost:5158/Symptoms/create", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reportData)
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP error! ${response.status}: ${errorText}`);
-      }
-
-      const result = await response.json();
-      if (result.success || response.status === 200 || response.status === 201) {
-        setShowSuccess(true);
-        handleClear();
-      } else {
-        throw new Error(result.message || "Submission failed");
-      }
+      if (!response.ok) throw new Error(await response.text());
+      setShowSuccess(true);
+      handleClear();
     } catch (error) {
-      console.error("Error details:", error);
-      alert("Failed to submit symptoms. Please try again.");
+      console.error(error);
+      alert("Failed to submit. Try again.");
     }
   };
 
   const districts = Object.keys(districtDivisionalSecretariats);
   const divisionalSecretariats = district ? districtDivisionalSecretariats[district] : [];
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-20 px-4 md:px-12 font-sans flex items-center justify-center">
       <div className="w-full max-w-2xl mx-auto p-0 md:p-6">
@@ -526,5 +486,8 @@ export default function SubmitSymptoms() {
         )}
       </div>
     </div>
-  );
-}
+  );}
+  
+  
+  
+  
