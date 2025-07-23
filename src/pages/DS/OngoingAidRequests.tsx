@@ -21,7 +21,6 @@ const OngoingAidRequests: React.FC = () => {
       try {
         setLoading(true);
 
-        // ✅ Read divisionalSecretariat from dsOfficerData object
         const dsData = localStorage.getItem("dsOfficerData");
         let divisionalSecretariat = "";
         if (dsData) {
@@ -41,20 +40,12 @@ const OngoingAidRequests: React.FC = () => {
         if (!res.ok) throw new Error("Failed to fetch ongoing aid requests.");
         const ongoingRequests = await res.json();
 
-        // Fetch contributions count for each aid request in parallel
         const requestsWithCounts = await Promise.all(
           ongoingRequests.map(async (req: any) => {
             const countRes = await fetch(
               `http://localhost:5158/AidRequest/contribution-count/${req.aid_id}`
             );
-            if (!countRes.ok) {
-              return {
-                ...req,
-                contributionsReceived: 0,
-                resolved: false,
-              };
-            }
-            const countData = await countRes.json();
+            const countData = countRes.ok ? await countRes.json() : { contributionsReceived: 0 };
             return {
               ...req,
               contributionsReceived: countData.contributionsReceived ?? 0,
@@ -74,17 +65,34 @@ const OngoingAidRequests: React.FC = () => {
     fetchOngoingAndCounts();
   }, []);
 
-  const handleResolvedChange = (idx: number) => {
-    setRequests((prev) => {
-      const updated = [...prev];
-      updated[idx] = { ...updated[idx], resolved: true };
-      return updated;
-    });
-    setTimeout(() => {
-      setRequests((prev) => prev.filter((_, i) => i !== idx));
-      setRemovedMessage("Aid request marked as resolved and removed.");
-      setTimeout(() => setRemovedMessage(""), 2500);
-    }, 800);
+  const handleResolvedChange = async (idx: number) => {
+    const aidId = requests[idx].aid_id;
+
+    try {
+      const res = await fetch(
+        `http://localhost:5158/AidRequest/resolve/${aidId}`,
+        { method: "POST" }
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to mark aid request as resolved.");
+      }
+
+      setRequests((prev) => {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], resolved: true };
+        return updated;
+      });
+
+      setTimeout(() => {
+        setRequests((prev) => prev.filter((_, i) => i !== idx));
+        setRemovedMessage("Aid request marked as resolved and removed.");
+        setTimeout(() => setRemovedMessage(""), 2500);
+      }, 800);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Error marking aid request as resolved.");
+    }
   };
 
   return (
@@ -140,23 +148,20 @@ const OngoingAidRequests: React.FC = () => {
           )}
         </div>
 
-        <div className="w-full mt-6 border-collapse relative">
-          {removedMessage && (
-            <>
-              <div className="absolute inset-0 bg-black bg-opacity-30 z-40 transition-opacity animate-fadeIn"></div>
-              <div className="absolute inset-0 flex items-center justify-center z-50">
-                <div className="bg-white rounded-2xl shadow-xl px-10 py-8 flex flex-col items-center animate-fadeIn">
-                  <div className="text-green-600 text-3xl mb-4 font-bold">✔</div>
-                  <div className="text-2xl font-semibold mb-4">{removedMessage}</div>
-                </div>
+        {removedMessage && (
+          <div className="w-full mt-6 border-collapse relative">
+            <div className="absolute inset-0 bg-black bg-opacity-30 z-40 transition-opacity animate-fadeIn"></div>
+            <div className="absolute inset-0 flex items-center justify-center z-50">
+              <div className="bg-white rounded-2xl shadow-xl px-10 py-8 flex flex-col items-center animate-fadeIn">
+                <div className="text-green-600 text-3xl mb-4 font-bold">✔</div>
+                <div className="text-2xl font-semibold mb-4">{removedMessage}</div>
               </div>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 export default OngoingAidRequests;
-
