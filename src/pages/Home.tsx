@@ -61,8 +61,10 @@ function StatCard({
 
 interface Alert {
   id: number;
-  title: string;
-  description: string;
+  type: string;
+  severity: string;
+  date: string;
+  time: string;
   latitude: number;
   longitude: number;
   district?: string;
