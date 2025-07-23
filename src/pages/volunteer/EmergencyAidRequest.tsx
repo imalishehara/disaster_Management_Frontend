@@ -23,7 +23,20 @@ export default function EmergencyAidRequest({ onBack, onAddContribution }: Emerg
     const fetchEmergencyRequests = async () => {
       try {
         setLoading(true);
-        const response = await axios.get<AidRequest[]>("http://localhost:5158/Volunteer/emergency-support");
+
+        // ✅ Get volunteer ID from localStorage
+        const volunteerId = localStorage.getItem("volunteerId");
+        if (!volunteerId) {
+          setError("Volunteer ID not found. Please log in again.");
+          setLoading(false);
+          return;
+        }
+
+        // ✅ Pass it as query param
+        const response = await axios.get<AidRequest[]>(
+          `http://localhost:5158/Volunteer/emergency-support?volunteerId=${volunteerId}`
+        );
+
         setRequests(response.data);
       } catch (err) {
         console.error(err);
@@ -61,7 +74,7 @@ export default function EmergencyAidRequest({ onBack, onAddContribution }: Emerg
           </tr>
         </thead>
         <tbody>
-          {requests.map(req => (
+          {requests.map((req) => (
             <tr key={req.aid_id} className="hover:bg-blue-50">
               <td className="py-2 px-4 border">{req.aid_id}</td>
               <td className="py-2 px-4 border">{req.contact_no}</td>
